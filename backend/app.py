@@ -32,7 +32,8 @@ def get_persons():
     app.logger.info(f"Using Home Assistant URL: {ha_url}")
     r = requests.get(f'{ha_url}/api/states', headers=headers)
     data = r.json()
-    persons = [entity for entity in data if entity['entity_id'].startswith('person.')]
+    # Filter out mqtt_adm user and get only person entities
+    persons = [entity for entity in data if entity['entity_id'].startswith('person.') and entity['entity_id'] != 'person.mqtt_adm']
     return jsonify(persons)
 
 @app.route('/api/zones', methods=['GET'])
