@@ -125,14 +125,20 @@ def get_history():
             top_3 = counter.most_common(3)
             total_events = len(states)
             
-            # Format the top 3 with percentages
+            # Calculate estimated duration for each location
+            # Assuming each event represents approximately 30 minutes of presence
+            event_duration_minutes = 540 / total_events if total_events > 0 else 30  # 9 hours = 540 minutes
+            
+            # Format the top 3 with percentages and estimated duration
             top_locations = []
             for location, count in top_3:
                 percentage = round((count / total_events) * 100, 1)
+                duration_minutes = count * event_duration_minutes
                 top_locations.append({
                     'location': location,
                     'count': count,
-                    'percentage': percentage
+                    'percentage': percentage,
+                    'duration': duration_minutes
                 })
             
             # Keep the main state for compatibility

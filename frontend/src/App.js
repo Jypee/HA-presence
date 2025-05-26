@@ -20,16 +20,19 @@ const getLocationIcon = (locationType) => {
 };
 
 // Enhanced color scheme for better visibility
-const getLocationStyle = (locationType, isCurrentDay = false, isMobile = false) => {
+const getLocationStyle = (locationType, isCurrentDay = false, screenSize = {}) => {
+  const isMobile = screenSize.width < 768;
+  const isSmallMobile = screenSize.width < 480;
+  
   const baseStyle = {
     textAlign: 'center',
-    height: isMobile ? 80 : 120, // Increased height for better visibility
+    height: isSmallMobile ? 100 : isMobile ? 120 : 140, // Responsive height
     border: '1px solid #ddd',
-    fontSize: isMobile ? '9px' : '11px',
+    fontSize: isSmallMobile ? '10px' : isMobile ? '11px' : '12px', // Responsive font size
     fontWeight: isCurrentDay ? 'bold' : 'normal',
     boxShadow: isCurrentDay ? '0 0 5px rgba(0,123,255,0.5)' : 'none',
     position: 'relative',
-    padding: isMobile ? '2px' : '4px'
+    padding: isSmallMobile ? '3px' : isMobile ? '4px' : '6px' // Responsive padding
   };
   
   switch (locationType) {
@@ -43,6 +46,242 @@ const getLocationStyle = (locationType, isCurrentDay = false, isMobile = false) 
       return { ...baseStyle, background: '#f8f9fa', color: '#6c757d' };
   }
 };
+
+// Modal component for detailed day view
+function DayDetailModal({ isOpen, onClose, dayData, date, personName, zones, isMobile }) {
+  if (!isOpen) return null;
+
+  const formatTimeRange = (start, end) => {
+    return `${dayjs(start).format('HH:mm')} - ${dayjs(end).format('HH:mm')}`;
+  };
+
+  const totalDuration = dayData?.top_locations?.reduce((acc, loc) => acc + (loc.duration || 0), 0) || 0;
+
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  return (
+    <div 
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+        padding: isMobile ? 5 : 20
+      }}
+      onClick={handleBackdropClick}
+    >
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: 12,
+        padding: isMobile ? 20 : 25,
+        maxWidth: isMobile ? '98%' : '700px',
+        width: '100%',
+        maxHeight: isMobile ? '95%' : '85%',
+        overflow: 'auto',
+        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)'
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 20,
+          borderBottom: '2px solid #e9ecef',
+          paddingBottom: 15
+        }}>
+          <h2 style={{
+            margin: 0,
+            color: '#495057',
+            fontSize: isMobile ? 20 : 24
+          }}>
+            📅 {dayjs(date).format('dddd DD MMMM YYYY')}
+          </h2>
+          <button
+            onClick={onClose}
+            style={{
+              background: '#dc3545',
+              color: 'white',
+              border: 'none',
+              borderRadius: 50,
+              width: isMobile ? 35 : 30,
+              height: isMobile ? 35 : 30,
+              cursor: 'pointer',
+              fontSize: isMobile ? 18 : 16,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <h3 style={{ color: '#6c757d', marginBottom: 10, fontSize: isMobile ? 16 : 18 }}>
+            👤 {personName}
+          </h3>
+        </div>
+
+        {dayData?.top_locations && dayData.top_locations.length > 0 ? (
+          <>
+            <div style={{ marginBottom: 20 }}>
+              <h4 style={{ color: '#495057', marginBottom: 15, fontSize: isMobile ? 16 : 18 }}>
+                📍 Répartition de la présence (heures de travail 9h-18h)
+              </h4>
+              
+              {/* Visual timeline */}
+              <div style={{
+                background: '#f8f9fa',
+                borderRadius: 8,
+                padding: isMobile ? 12 : 15,
+                marginBottom: 15
+              }}>
+                <div style={{
+                  display: 'flex',
+                  height: isMobile ? 50 : 40,
+                  borderRadius: 6,
+                  overflow: 'hidden',
+                  border: '1px solid #dee2e6'
+                }}>
+                  {dayData.top_locations.map((location, idx) => {
+                    const locationType = getLocationTypeFromName(location.location, personName, zones);
+                    const color = locationType === 'home' ? '#88d8a3' : 
+                                 locationType === 'office' ? '#7bb8ff' : '#ffa474';
+                    
+                    return (
+                      <div
+                        key={idx}
+                        style={{
+                          width: `${location.percentage}%`,
+                          backgroundColor: color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'white',
+                          fontWeight: 'bold',
+                          fontSize: isMobile ? 12 : 12,
+                          textShadow: '1px 1px 2px rgba(0,0,0,0.3)'
+                        }}
+                        title={`${getFriendlyLocationName(location.location, personName, zones)}: ${location.percentage}%`}
+                      >
+                        {location.percentage > 12 ? `${location.percentage.toFixed(0)}%` : ''}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Detailed breakdown */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {dayData.top_locations.map((location, idx) => {
+                  const locationType = getLocationTypeFromName(location.location, personName, zones);
+                  const friendlyName = getFriendlyLocationName(location.location, personName, zones);
+                  const icon = getLocationIcon(locationType);
+                  
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: isMobile ? 15 : 12,
+                        borderRadius: 8,
+                        background: idx === 0 ? 'linear-gradient(135deg, #e3f2fd, #bbdefb)' : '#f8f9fa',
+                        border: `1px solid ${idx === 0 ? '#90caf9' : '#dee2e6'}`,
+                        fontSize: isMobile ? 14 : 14
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: isMobile ? 20 : 18 }}>{icon}</span>
+                        <div>
+                          <div style={{ fontWeight: 'bold', color: '#495057' }}>
+                            {friendlyName}
+                          </div>
+                          <div style={{ fontSize: isMobile ? 12 : 12, color: '#6c757d' }}>
+                            {location.count} événement{location.count > 1 ? 's' : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ 
+                          fontWeight: 'bold', 
+                          fontSize: isMobile ? 16 : 16,
+                          color: idx === 0 ? '#1565c0' : '#495057'
+                        }}>
+                          {location.percentage.toFixed(1)}%
+                        </div>
+                        {location.duration && (
+                          <div style={{ fontSize: isMobile ? 12 : 12, color: '#6c757d' }}>
+                            ~{Math.round(location.duration / 60)}h {Math.round(location.duration % 60)}min
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div style={{
+              background: 'linear-gradient(135deg, #e8f5e8, #c8e6c9)',
+              borderRadius: 8,
+              padding: isMobile ? 18 : 15,
+              border: '1px solid #a5d6a7'
+            }}>
+              <h4 style={{ color: '#2e7d32', marginBottom: 10, fontSize: isMobile ? 16 : 16 }}>
+                📊 Résumé
+              </h4>
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
+                gap: isMobile ? 8 : 10, 
+                fontSize: isMobile ? 14 : 14 
+              }}>
+                <div>
+                  <strong>Lieu principal:</strong><br />
+                  {getFriendlyLocationName(dayData.top_locations[0]?.location, personName, zones)}
+                </div>
+                <div>
+                  <strong>Temps principal:</strong><br />
+                  {dayData.top_locations[0]?.percentage.toFixed(1)}% de la journée
+                </div>
+                <div>
+                  <strong>Nombre de lieux:</strong><br />
+                  {dayData.top_locations.length} lieu{dayData.top_locations.length > 1 ? 'x' : ''}
+                </div>
+                <div>
+                  <strong>Événements total:</strong><br />
+                  {dayData.top_locations.reduce((acc, loc) => acc + loc.count, 0)}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div style={{
+            textAlign: 'center',
+            padding: isMobile ? 50 : 40,
+            color: '#6c757d',
+            fontSize: isMobile ? 16 : 16
+          }}>
+            <div style={{ fontSize: isMobile ? 50 : 40, marginBottom: 15 }}>❓</div>
+            Aucune donnée de présence disponible pour cette journée
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // Helper function to get location type based on location name
 const getLocationTypeFromName = (locationName, personName, zones) => {
@@ -113,14 +352,38 @@ function Calendar({ persons, zones, data, year, month, onMonthChange }) {
   const calendar = getCalendarMatrix(year, month);
   const today = dayjs();
   const currentMonth = dayjs(`${year}-${month}-01`);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [screenSize, setScreenSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight
+  });
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
   
-  // Update mobile state on resize
+  // Determine device type based on screen size
+  const isMobile = screenSize.width < 768;
+  const isTablet = screenSize.width >= 768 && screenSize.width < 1024;
+  const isSmallMobile = screenSize.width < 480;
+  
+  // Update screen size on resize
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    const handleResize = () => setScreenSize({
+      width: window.innerWidth,
+      height: window.innerHeight
+    });
+    
+    // Initial detection
+    handleResize();
+    
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const handleDayClick = (date, dayData, personName) => {
+    if (dayData && dayData.top_locations && dayData.top_locations.length > 0) {
+      setSelectedDay({ date: date.format('YYYY-MM-DD'), dayData, personName });
+      setModalOpen(true);
+    }
+  };
   
   return (
     <div style={{ 
@@ -224,12 +487,16 @@ function Calendar({ persons, zones, data, year, month, onMonthChange }) {
                 {calendar.map((week, wIdx) => (
                   <tr key={wIdx + '-' + person.entity_id}>
                     {week.map((d, i) => {
-                      if (!d) return <td key={i} style={{ background: '#f8f9fa', height: isMobile ? 80 : 120, border: '1px solid #dee2e6' }} />;
+                      if (!d) return <td key={i} style={{ 
+                        background: '#f8f9fa', 
+                        height: isSmallMobile ? 100 : isMobile ? 120 : 140, 
+                        border: '1px solid #dee2e6' 
+                      }} />;
                       
                       const isCurrentDay = d.format('YYYY-MM-DD') === today.format('YYYY-MM-DD');
                       const dayData = data?.[person.entity_id]?.[d.format('YYYY-MM-DD')];
                       const loc = dayData?.state || '';
-                      const topLocations = dayData?.topLocations || [];
+                      const topLocations = dayData?.top_locations || [];
                       
                       let locationType = 'unknown';
                       let displayText = d.date().toString();
@@ -254,7 +521,7 @@ function Calendar({ persons, zones, data, year, month, onMonthChange }) {
                         }
                       }
                       
-                      const cellStyle = getLocationStyle(locationType, isCurrentDay, isMobile);
+                      const cellStyle = getLocationStyle(locationType, isCurrentDay, screenSize);
                       
                       // Create tooltip with detailed information
                       const tooltipText = `${d.format('DD/MM/YYYY')}\n${topLocations.map(tl => {
@@ -267,12 +534,13 @@ function Calendar({ persons, zones, data, year, month, onMonthChange }) {
                           key={d.format('YYYY-MM-DD')} 
                           style={{
                             ...cellStyle,
-                            cursor: 'pointer',
+                            cursor: (dayData && dayData.top_locations && dayData.top_locations.length > 0) ? 'pointer' : 'default',
                             transition: 'all 0.3s ease'
                           }}
                           title={tooltipText}
+                          onClick={() => handleDayClick(d, dayData, person.attributes.friendly_name)}
                           onMouseOver={(e) => {
-                            if (!isMobile) {
+                            if (!isMobile && dayData && dayData.top_locations && dayData.top_locations.length > 0) {
                               e.target.style.transform = 'scale(1.02)';
                               e.target.style.zIndex = '10';
                             }
@@ -290,34 +558,61 @@ function Calendar({ persons, zones, data, year, month, onMonthChange }) {
                             alignItems: 'center', 
                             justifyContent: 'flex-start', 
                             height: '100%', 
-                            padding: isMobile ? '2px 1px' : '4px 2px',
-                            fontSize: isMobile ? '7px' : '9px'
+                            padding: isSmallMobile ? '3px 1px' : isMobile ? '4px 2px' : '6px 3px',
+                            fontSize: isSmallMobile ? '8px' : isMobile ? '9px' : '10px'
                           }}>
                             {/* Day number */}
-                            <div style={{ fontSize: isMobile ? 12 : 14, fontWeight: 'bold', marginBottom: 2 }}>
+                            <div style={{ 
+                              fontSize: isSmallMobile ? 14 : isMobile ? 16 : 18, 
+                              fontWeight: 'bold', 
+                              marginBottom: isSmallMobile ? 2 : 4 
+                            }}>
                               {displayText}
+                              {dayData && dayData.top_locations && dayData.top_locations.length > 0 && (
+                                <span style={{ 
+                                  fontSize: isSmallMobile ? 8 : isMobile ? 10 : 12, 
+                                  marginLeft: 3, 
+                                  color: 'rgba(0,0,0,0.6)',
+                                  cursor: 'pointer' 
+                                }}>
+                                  🔍
+                                </span>
+                              )}
                             </div>
                             
-                            {/* Top 3 locations */}
-                            {topLocations.slice(0, isMobile ? 2 : 3).map((tl, idx) => {
+                            {/* Top locations */}
+                            {topLocations.slice(0, isSmallMobile ? 2 : isMobile ? 3 : 4).map((tl, idx) => {
                               const friendlyName = getFriendlyLocationName(tl.location, person.attributes.friendly_name, zones);
                               const locationTypeForIcon = getLocationTypeFromName(tl.location, person.attributes.friendly_name, zones);
-                              const shortName = isMobile ? 
-                                (friendlyName.length > 5 ? friendlyName.substring(0, 5) + '..' : friendlyName) :
-                                (friendlyName.length > 7 ? friendlyName.substring(0, 7) + '...' : friendlyName);
+                              const maxLength = isSmallMobile ? 6 : isMobile ? 8 : 10;
+                              const shortName = friendlyName.length > maxLength ? 
+                                friendlyName.substring(0, maxLength) + '..' : friendlyName;
                               
                               return (
                                 <div key={idx} style={{ 
-                                  fontSize: isMobile ? 7 : 8, 
+                                  fontSize: isSmallMobile ? 7 : isMobile ? 9 : 10, 
                                   display: 'flex', 
                                   alignItems: 'center', 
-                                  gap: 1,
-                                  marginBottom: 1,
-                                  opacity: idx === 0 ? 1 : 0.8 - (idx * 0.2)
+                                  gap: 2,
+                                  marginBottom: isSmallMobile ? 1 : isMobile ? 2 : 1,
+                                  opacity: idx === 0 ? 1 : 0.9 - (idx * 0.15),
+                                  flexWrap: 'wrap',
+                                  justifyContent: 'center',
+                                  width: '100%'
                                 }}>
-                                  <span style={{ fontSize: isMobile ? 8 : 9 }}>{getLocationIcon(locationTypeForIcon)}</span>
-                                  <span style={{ fontSize: isMobile ? 7 : 8 }}>{shortName}</span>
-                                  <span style={{ fontSize: isMobile ? 6 : 7, fontWeight: 'bold' }}>({tl.percentage}%)</span>
+                                  <span style={{ fontSize: isSmallMobile ? 8 : isMobile ? 10 : 11 }}>
+                                    {getLocationIcon(locationTypeForIcon)}
+                                  </span>
+                                  <span style={{ 
+                                    fontSize: isSmallMobile ? 6 : isMobile ? 8 : 9,
+                                    textAlign: 'center',
+                                    lineHeight: 1.1
+                                  }}>{shortName}</span>
+                                  <span style={{ 
+                                    fontSize: isSmallMobile ? 6 : isMobile ? 8 : 9, 
+                                    fontWeight: 'bold',
+                                    color: idx === 0 ? '#1565c0' : 'inherit'
+                                  }}>({tl.percentage.toFixed(0)}%)</span>
                                 </div>
                               );
                             })}
@@ -332,6 +627,19 @@ function Calendar({ persons, zones, data, year, month, onMonthChange }) {
           </tbody>
         </table>
       </div>
+      
+      {/* Day Detail Modal */}
+      {selectedDay && (
+        <DayDetailModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          dayData={selectedDay.dayData}
+          date={selectedDay.date}
+          personName={selectedDay.personName}
+          zones={zones}
+          isMobile={isMobile}
+        />
+      )}
     </div>
   );
 }
@@ -371,7 +679,7 @@ function App() {
       history.forEach(event => {
         dayLoc[event.date] = {
           state: event.state,
-          topLocations: event.top_locations || []
+          top_locations: event.top_locations || []
         };
       });
       dataObj[person.entity_id] = dayLoc;
@@ -450,6 +758,22 @@ function App() {
         }}>
           🏠 Calendrier de Présence
         </h1>
+        
+        {!loading && (
+          <div style={{
+            textAlign: 'center',
+            fontSize: isMobile ? 11 : 13,
+            color: '#6c757d',
+            marginBottom: 10,
+            padding: isMobile ? '5px' : '8px',
+            background: 'linear-gradient(135deg, #fff3cd, #ffeaa7)',
+            borderRadius: 6,
+            border: '1px solid #ffc107',
+            flexShrink: 0
+          }}>
+            💡 <strong>Astuce:</strong> Cliquez sur un jour avec des données (🔍) pour voir les détails de présence
+          </div>
+        )}
         
         {!loading && (
           <div style={{ 
@@ -621,8 +945,8 @@ function App() {
                   let otherDays = 0;
                   
                   Object.values(monthData).forEach(dayData => {
-                    if (dayData.topLocations && dayData.topLocations.length > 0) {
-                      const mainLocation = dayData.topLocations[0].location;
+                    if (dayData.top_locations && dayData.top_locations.length > 0) {
+                      const mainLocation = dayData.top_locations[0].location;
                       if (mainLocation === 'home') {
                         homeDays++;
                       } else if (mainLocation === 'office' || 
