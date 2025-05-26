@@ -207,4 +207,10 @@ def index():
     return {'status': 'ok'}
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    import os
+    # Get environment variables
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_ENV') != 'production'
+    host = '0.0.0.0'  # Allow external connections in Docker
+    
+    app.run(debug=debug, port=port, host=host)

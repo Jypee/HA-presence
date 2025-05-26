@@ -1,0 +1,41 @@
+version: '3.8'
+
+# Development Docker Compose - Simpler setup for testing
+services:
+  # Flask Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ha-presence-backend-dev
+    restart: unless-stopped
+    environment:
+      - FLASK_ENV=development
+      - FLASK_APP=app.py
+    volumes:
+      - ./backend/config.yaml:/app/config.yaml:ro
+      - ./backend:/app  # Mount source for development
+    ports:
+      - "5000:5000"
+    networks:
+      - ha-presence-network
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=http://localhost:5000/api
+    container_name: ha-presence-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - ha-presence-network
+
+networks:
+  ha-presence-network:
+    driver: bridge
