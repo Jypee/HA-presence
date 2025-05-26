@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # Flask Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ha-presence-backend
+    restart: unless-stopped
+    environment:
+      - FLASK_ENV=production
+      - FLASK_APP=app.py
+      - TZ=Europe/Paris  # Adjust timezone as needed
+    volumes:
+      - /mnt/user/appdata/ha-presence/config.yaml:/app/config.yaml:ro
+    ports:
+      - "5000:5000"
+    networks:
+      - ha-presence-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # React Frontend (Production Build)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=/api
+    container_name: ha-presence-frontend
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Paris  # Adjust timezone as needed
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - ha-presence-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: ha-presence-nginx
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Paris  # Adjust timezone as needed
+    ports:
+      - "8080:80"  # Changed to avoid conflict with Unraid WebUI
+      - "8443:443" # Changed to avoid conflict with Unraid WebUI
+    volumes:
+      - /mnt/user/appdata/ha-presence/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /mnt/user/appdata/ha-presence/nginx/ssl:/etc/nginx/ssl:ro
+      - /mnt/user/appdata/ha-presence/nginx/logs:/var/log/nginx
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - ha-presence-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  ha-presence-network:
+    driver: bridge
+
+volumes:
+  nginx-ssl:
+    driver: local
