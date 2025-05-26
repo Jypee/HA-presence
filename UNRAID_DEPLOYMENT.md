@@ -192,6 +192,18 @@ Configure Unraid notifications for container failures:
 
 ### Common Issues
 
+**Build context not found error:**
+```bash
+# Error: unable to prepare context: path "...backend" not found
+# Solution: Ensure project files are copied to the correct location
+ls -la /mnt/user/docker/compose/ha-presence/
+# Should show: backend/, frontend/, nginx/ directories
+
+# If missing, run the setup script:
+cd /mnt/user/docker/compose/ha-presence
+./setup-unraid.sh
+```
+
 **Containers won't start:**
 ```bash
 # Check permissions

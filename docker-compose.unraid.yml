@@ -4,7 +4,7 @@ services:
   # Flask Backend
   backend:
     build:
-      context: ./backend
+      context: /mnt/user/docker/compose/ha-presence/backend
       dockerfile: Dockerfile
     container_name: ha-presence-backend
     restart: unless-stopped
@@ -28,7 +28,7 @@ services:
   # React Frontend (Production Build)
   frontend:
     build:
-      context: ./frontend
+      context: /mnt/user/docker/compose/ha-presence/frontend
       dockerfile: Dockerfile
       args:
         - REACT_APP_API_URL=/api
