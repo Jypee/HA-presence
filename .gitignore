@@ -1,0 +1,5 @@
+backend/config.yaml
+
+frontend/node_modules/
+backend/persons.json
+backend/zones.json

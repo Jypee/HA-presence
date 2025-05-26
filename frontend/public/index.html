@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Calendrier de Présence Home Assistant</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        min-height: 100vh;
+      }
+      
+      @media (max-width: 768px) {
+        .calendar-container {
+          padding: 10px !important;
+        }
+        
+        .calendar-table {
+          font-size: 12px !important;
+        }
+        
+        .calendar-cell {
+          height: 35px !important;
+          font-size: 10px !important;
+        }
+        
+        .month-navigation {
+          flex-direction: column !important;
+          gap: 10px !important;
+        }
+        
+        .month-nav-button {
+          width: 100% !important;
+          text-align: center !important;
+        }
+        
+        .user-selector {
+          flex-direction: column !important;
+          align-items: flex-start !important;
+        }
+        
+        .legend-container {
+          grid-template-columns: 1fr !important;
+        }
+      }
+      
+      @media (max-width: 480px) {
+        .main-container {
+          padding: 15px !important;
+        }
+        
+        .calendar-table {
+          min-width: 100% !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>Vous devez activer JavaScript pour utiliser cette application.</noscript>
+    <div id="root"></div>
+  </body>
+</html>
