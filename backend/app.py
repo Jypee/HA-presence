@@ -94,58 +94,106 @@ def get_history():
         if not ts:
             continue
         dt = datetime.fromisoformat(ts[:19])  # 'YYYY-MM-DDTHH:MM:SS'
-        if 9 <= dt.hour < 18:
-            day = dt.strftime('%Y-%m-%d')
-            state = event['state']
-            # If not_home, try device_tracker
-            if state == 'not_home' and device_trackers:
-                # For now, just use the first tracker
-                tracker_id = device_trackers[0]
-                # Fetch tracker state at this time
-                t_url = f"{ha_url}/api/history/period/{dt.isoformat()}?filter_entity_id={tracker_id}&end_time={dt.isoformat()}"
-                t_resp = requests.get(t_url, headers=headers)
-                t_hist = t_resp.json()
-                t_events = t_hist[0] if t_hist and len(t_hist) > 0 else []
-                if t_events:
-                    t_ev = t_events[-1]
-                    lat = t_ev.get('attributes', {}).get('latitude')
-                    lon = t_ev.get('attributes', {}).get('longitude')
-                    if lat is not None and lon is not None:
-                        zone_name = zone_for_location(lat, lon)
-                        if zone_name:
-                            state = zone_name
-            day_states[day].append(state)
-    # For each day, find the top 3 most frequent states during working hours
+        day = dt.strftime('%Y-%m-%d')
+        state = event['state']
+        
+        # If not_home, try device_tracker
+        if state == 'not_home' and device_trackers:
+            # For now, just use the first tracker
+            tracker_id = device_trackers[0]
+            # Fetch tracker state at this time
+            t_url = f"{ha_url}/api/history/period/{dt.isoformat()}?filter_entity_id={tracker_id}&end_time={dt.isoformat()}"
+            t_resp = requests.get(t_url, headers=headers)
+            t_hist = t_resp.json()
+            t_events = t_hist[0] if t_hist and len(t_hist) > 0 else []
+            if t_events:
+                t_ev = t_events[-1]
+                lat = t_ev.get('attributes', {}).get('latitude')
+                lon = t_ev.get('attributes', {}).get('longitude')
+                if lat is not None and lon is not None:
+                    zone_name = zone_for_location(lat, lon)
+                    if zone_name:
+                        state = zone_name
+        
+        day_states[day].append({
+            'timestamp': dt,
+            'state': state
+        })
+    
+    # For each day, calculate actual time spent in each location during working hours
     result = []
     for day in sorted(day_states.keys()):
-        states = day_states[day]
-        if states:
-            # Get top 3 most common states with their counts
-            counter = collections.Counter(states)
-            top_3 = counter.most_common(3)
-            total_events = len(states)
+        events_list = day_states[day]
+        if not events_list:
+            result.append({
+                'date': day, 
+                'state': 'unknown',
+                'top_locations': []
+            })
+            continue
             
-            # Calculate estimated duration for each location
-            # Assuming each event represents approximately 30 minutes of presence
-            event_duration_minutes = 540 / total_events if total_events > 0 else 30  # 9 hours = 540 minutes
+        # Sort events by timestamp
+        events_list.sort(key=lambda x: x['timestamp'])
+        
+        # Calculate time spent in each location during working hours (9:00-18:00)
+        location_durations = collections.defaultdict(float)
+        total_working_minutes = 0
+        
+        # Define working hours for the day
+        day_date = datetime.strptime(day, '%Y-%m-%d')
+        work_start = day_date.replace(hour=9, minute=0, second=0)
+        work_end = day_date.replace(hour=18, minute=0, second=0)
+        
+        for i in range(len(events_list)):
+            current_event = events_list[i]
+            current_time = current_event['timestamp']
+            current_state = current_event['state']
             
-            # Format the top 3 with percentages and estimated duration
-            top_locations = []
-            for location, count in top_3:
-                percentage = round((count / total_events) * 100, 1)
-                duration_minutes = count * event_duration_minutes
+            # Determine the end time for this state
+            if i < len(events_list) - 1:
+                next_time = events_list[i + 1]['timestamp']
+            else:
+                # Last event of the day, assume it lasts until end of working hours or current time
+                next_time = min(work_end, datetime.now().replace(second=0, microsecond=0))
+            
+            # Calculate overlap with working hours
+            period_start = max(current_time, work_start)
+            period_end = min(next_time, work_end)
+            
+            if period_start < period_end:
+                # There's an overlap with working hours
+                duration_minutes = (period_end - period_start).total_seconds() / 60
+                location_durations[current_state] += duration_minutes
+                total_working_minutes += duration_minutes
+        
+        # If no events during working hours, but we have events, extrapolate
+        if total_working_minutes == 0 and events_list:
+            # Find the state closest to working hours
+            closest_event = min(events_list, key=lambda x: abs((x['timestamp'] - work_start).total_seconds()))
+            location_durations[closest_event['state']] = 540  # Full 9 hours
+            total_working_minutes = 540
+        
+        # Convert to percentages and create top locations list
+        top_locations = []
+        if total_working_minutes > 0:
+            for location, duration in location_durations.items():
+                percentage = (duration / 540) * 100  # 540 = 9 hours in minutes
+                count = sum(1 for e in events_list if e['state'] == location)
                 top_locations.append({
                     'location': location,
                     'count': count,
-                    'percentage': percentage,
-                    'duration': duration_minutes
+                    'percentage': round(percentage, 1),
+                    'duration': round(duration, 1)
                 })
             
-            # Keep the main state for compatibility
-            main_state = top_3[0][0]
+            # Sort by duration (descending)
+            top_locations.sort(key=lambda x: x['duration'], reverse=True)
+            # Keep only top 3
+            top_locations = top_locations[:3]
+            
+            main_state = top_locations[0]['location'] if top_locations else 'unknown'
         else:
             main_state = 'unknown'
-            top_locations = []
         
         result.append({
             'date': day, 
